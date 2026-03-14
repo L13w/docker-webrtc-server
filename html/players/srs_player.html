@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HLS Player</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css"/>
+    <style>
+        body { padding-top: 60px; }
+    </style>
+</head>
+<body>
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <a class="brand" href="https://github.com/ossrs/srs">SRS</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    <li class="active"><a id="nav_srs_player" href="srs_player.html">HLS Player</a></li>
+                    <li><a id="nav_rtc_player" href="rtc_player.html">WebRTC Player</a></li>
+                    <li><a id="nav_rtc_publisher" href="rtc_publisher.html">WebRTC Publisher</a></li>
+                    <li><a id="nav_whip" href="whip.html">WHIP</a></li>
+                    <li><a id="nav_whep" href="whep.html">WHEP</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div id="main_content">
+        <div id="main_info" class="alert alert-info fade in">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <strong>Usage:</strong> Enter the HTTP-FLV/HLS URL and click "Play" to start playing.
+        </div>
+        <div class="form-inline">
+            <div>
+                URL:
+                <input type="text" id="txt_url" class="input-xxlarge" value="">
+                <button class="btn btn-primary" id="btn_play">Play</button>
+            </div>
+            <p></p>
+            <div>
+                <video id="video_player" width="100%" autoplay controls></video>
+            </div>
+            <p>
+                Share: <a href="#" id="link_url" target="_blank">Right-click and copy this link.</a>
+            </p>
+            <div id="main_tips">
+                <p></p>
+                <p>
+                    Recommended players:
+                    <ul>
+                        <li><a href="https://github.com/xqq/mpegts.js">flv.js</a> &mdash; HTML5/MSE for HTTP-FLV</li>
+                        <li><a href="https://github.com/xqq/mpegts.js">mpegts.js</a> &mdash; HTML5/MSE for HTTP-TS</li>
+                        <li><a href="https://github.com/video-dev/hls.js/">hls.js</a> &mdash; HTML5/MSE for HLS</li>
+                        <li><a href="https://github.com/Dash-Industry-Forum/dash.js">dash.js</a> &mdash; HTML5/MSE for MPEG-DASH</li>
+                    </ul>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div name="detect_flash">
+        <div id="main_flash_alert" class="alert alert-danger fade in hide">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <p>
+                <a href="https://www.adobe.com/products/flashplayer/end-of-life.html" target="_blank">Flash is end-of-life</a>.
+                RTMP playback in browsers is no longer supported. Use ffplay or VLC to play RTMP streams.
+            </p>
+            <ul>
+                <li>For low-latency (3-5s): use HTTP-FLV with <a href="https://github.com/xqq/mpegts.js">flv.js</a> or HTTP-TS with <a href="https://github.com/xqq/mpegts.js">mpegts.js</a>.</li>
+                <li>For broad compatibility (5-10s): use HLS with <a href="https://github.com/video-dev/hls.js/">hls.js</a>.</li>
+                <li>For ultra-low latency (&lt;1s): use WebRTC with the <a href="rtc_player.html">WebRTC Player</a>.</li>
+            </ul>
+        </div>
+    </div>
+
+    <footer>
+        <p></p>
+        <p>Powered by <a href="https://github.com/ossrs/srs">SRS</a></p>
+    </footer>
+</div>
+</body>
+<script type="text/javascript" src="js/jquery-1.12.2.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.min.js"></script>
+<script type="text/javascript" src="js/mpegts-1.7.2.min.js"></script>
+<script type="text/javascript" src="js/hls-0.14.17.min.js"></script>
+<script type="text/javascript" src="js/dash-v4.5.1.all.min.js"></script>
+<script type="text/javascript" src="js/json2.js"></script>
+<script type="text/javascript" src="js/srs.page.js"></script>
+<script type="text/javascript" src="js/srs.log.js"></script>
+<script type="text/javascript" src="js/srs.utility.js"></script>
+<script type="text/javascript" src="js/winlin.utility.js"></script>
+<script type="text/javascript">
+    var flvPlayer = null;
+    var tsPlayer = null;
+    var hlsPlayer = null;
+    var dashPlayer = null;
+
+    var stopPlayers = function () {
+        if (flvPlayer) { flvPlayer.destroy(); flvPlayer = null; }
+        if (tsPlayer) { tsPlayer.destroy(); tsPlayer = null; }
+        if (hlsPlayer) { hlsPlayer.destroy(); hlsPlayer = null; }
+        if (dashPlayer) { dashPlayer.destroy(); dashPlayer = null; }
+    };
+
+    var hide_for_error = function () {
+        $('#main_flash_alert').show();
+        $('#main_info').hide();
+        $('#main_tips').hide();
+        $('#video_player').hide();
+        stopPlayers();
+    };
+
+    var show_for_ok = function () {
+        $('#main_flash_alert').hide();
+        $('#main_info').show();
+        $('#main_tips').show();
+        $('#video_player').show();
+    };
+
+    var apply_url_change = function() {
+        var r = parse_rtmp_url($("#txt_url").val());
+        var url = window.location.protocol + "//" + query.host + query.pathname + "?autostart=true"
+            + "&app=" + r.app + "&stream=" + r.stream + "&server=" + r.server + "&port=" + r.port;
+        url += (query.shp_identify) ? "&shp_identify=" + query.shp_identify : '';
+        url += (r.vhost === "__defaultVhost__") ? "&vhost=" + r.server : "&vhost=" + r.vhost;
+        url += (r.schema !== "rtmp") ? "&schema=" + r.schema : '';
+        url += (query.buffer) ? "&buffer=" + query.buffer : '';
+        url += (query.api_port) ? "&api_port=" + query.api_port : '';
+
+        var queries = user_extra_params(query);
+        queries = user_extra_params(r, queries);
+
+        if (queries && queries.length) {
+            url += '&' + queries.join('&');
+        }
+        $("#player_url").text($("#txt_url").val()).attr("href", url);
+        $("#link_url").attr("href", url);
+
+        if (r.schema === 'rtmp') {
+            hide_for_error();
+            return;
+        }
+
+        return r;
+    };
+
+    var start_play = function (r) {
+        stopPlayers();
+        if (!r) return;
+
+        if (r.stream.indexOf('.mp4') > 0) {
+            $('#video_player').attr('src', r.url).show();
+            return;
+        }
+
+        if (r.stream.indexOf('.ts') > 0) {
+            if (!mpegts.getFeatureList().mseLivePlayback) { hide_for_error(); return; }
+            show_for_ok();
+            tsPlayer = mpegts.createPlayer({type: 'mpegts', url: r.url, isLive: true, enableStashBuffer: false});
+            tsPlayer.attachMediaElement(document.getElementById('video_player'));
+            tsPlayer.load();
+            tsPlayer.play();
+            return;
+        }
+
+        if (r.stream.indexOf('.m3u8') > 0) {
+            if (!Hls.isSupported()) { hide_for_error(); return; }
+            show_for_ok();
+            hlsPlayer = new Hls();
+            hlsPlayer.loadSource(r.url);
+            hlsPlayer.attachMedia(document.getElementById('video_player'));
+            return;
+        }
+
+        if (r.stream.indexOf('.mpd') > 0) {
+            show_for_ok();
+            dashPlayer = dashjs.MediaPlayer().create();
+            dashPlayer.initialize(document.querySelector("#video_player"), r.url, true);
+            return;
+        }
+
+        let isFlv = r.stream.indexOf('.flv') > 0;
+        isFlv = isFlv || r.stream && r.url.indexOf('http') === 0;
+        if (isFlv) {
+            if (!mpegts.getFeatureList().mseLivePlayback) { hide_for_error(); return; }
+            show_for_ok();
+            flvPlayer = mpegts.createPlayer({type: 'flv', url: r.url, isLive: true, enableStashBuffer: false});
+            flvPlayer.attachMediaElement(document.getElementById('video_player'));
+            flvPlayer.load();
+            flvPlayer.play();
+            return;
+        }
+
+        console.error('Unsupported URL', r.url, r);
+        $('#video_player').hide();
+    };
+
+    $("#txt_url").change(function(){ apply_url_change(); });
+
+    $("#btn_play").click(function(){
+        $('#video_player').prop('muted', false);
+        var r = apply_url_change();
+        start_play(r);
+    });
+
+    var query = parse_query_string();
+    srs_init_flv("#txt_url");
+    // Default to HLS (.m3u8) instead of HTTP-FLV
+    var currentUrl = $("#txt_url").val();
+    if (currentUrl && currentUrl.indexOf('.flv') > 0) {
+        $("#txt_url").val(currentUrl.replace('.flv', '.m3u8'));
+    }
+
+    if (query.autostart === "true") {
+        $('#video_player').prop('muted', true);
+        var r = apply_url_change();
+        start_play(r);
+    } else {
+        $('#video_player').hide();
+    }
+</script>
+</html>

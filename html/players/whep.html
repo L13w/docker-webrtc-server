@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WHEP Player</title>
+    <meta charset="utf-8">
+    <style>
+        body { padding-top: 60px; }
+    </style>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css"/>
+    <script type="text/javascript" src="js/jquery-1.12.2.min.js"></script>
+    <script type="text/javascript" src="js/adapter-7.4.0.min.js"></script>
+    <script type="text/javascript" src="js/srs.sdk.js"></script>
+    <script type="text/javascript" src="js/winlin.utility.js"></script>
+    <script type="text/javascript" src="js/srs.page.js"></script>
+</head>
+<body>
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <a class="brand" href="https://github.com/ossrs/srs">SRS</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    <li><a id="nav_srs_player" href="srs_player.html">HLS Player</a></li>
+                    <li><a id="nav_rtc_player" href="rtc_player.html">WebRTC Player</a></li>
+                    <li><a id="nav_rtc_publisher" href="rtc_publisher.html">WebRTC Publisher</a></li>
+                    <li><a id="nav_whip" href="whip.html">WHIP</a></li>
+                    <li class="active"><a id="nav_whep" href="whep.html">WHEP</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div id="main_info" class="alert alert-info fade in">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Usage:</strong> Enter the WebRTC WHEP URL and click "Play" to start playing.
+    </div>
+    <div class="form-inline">
+        URL:
+        <input type="text" id="txt_url" class="input-xxlarge" value="">
+        <button class="btn btn-primary" id="btn_play">Play</button>
+    </div>
+
+    <label></label>
+    <video id="rtc_media_player" controls autoplay></video>
+
+    <label></label>
+    SessionID: <span id='sessionid'></span>
+
+    <label></label>
+    Simulator: <a href='#' id='simulator-drop'>Drop</a>
+
+    <footer>
+        <p></p>
+        <p>Powered by <a href="https://github.com/ossrs/srs">SRS</a></p>
+    </footer>
+</div>
+<script type="text/javascript">
+$(function(){
+    var sdk = null;
+    var startPlay = function() {
+        $('#rtc_media_player').show();
+        if (sdk) {
+            sdk.close();
+        }
+        sdk = new SrsRtcWhipWhepAsync();
+        $('#rtc_media_player').prop('srcObject', sdk.stream);
+
+        var url = $("#txt_url").val();
+        sdk.play(url).then(function(session){
+            $('#sessionid').html(session.sessionid);
+            $('#simulator-drop').attr('href', session.simulator + '?drop=1&username=' + session.sessionid);
+        }).catch(function (reason) {
+            sdk.close();
+            $('#rtc_media_player').hide();
+            console.error(reason);
+        });
+    };
+
+    $('#rtc_media_player').hide();
+    var query = parse_query_string();
+    srs_init_whep("#txt_url", query);
+
+    $("#btn_play").click(startPlay);
+    if (query.autostart === 'true') {
+        $('#rtc_media_player').prop('muted', true);
+        window.addEventListener("load", function(){ startPlay(); });
+    }
+});
+</script>
+</body>
+</html>

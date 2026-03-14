@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Publisher</title>
+    <meta charset="utf-8">
+    <style>
+        body { padding-top: 60px; }
+    </style>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css"/>
+    <script type="text/javascript" src="js/jquery-1.12.2.min.js"></script>
+    <script type="text/javascript" src="js/adapter-7.4.0.min.js"></script>
+    <script type="text/javascript" src="js/srs.sdk.js"></script>
+    <script type="text/javascript" src="js/winlin.utility.js"></script>
+    <script type="text/javascript" src="js/srs.page.js"></script>
+</head>
+<body>
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <a id="srs_index" class="brand" href="https://github.com/ossrs/srs">SRS</a>
+            <div class="nav-collapse collapse">
+                <ul class="nav">
+                    <li><a id="nav_srs_player" href="srs_player.html">HLS Player</a></li>
+                    <li><a id="nav_rtc_player" href="rtc_player.html">WebRTC Player</a></li>
+                    <li class="active"><a id="nav_rtc_publisher" href="rtc_publisher.html">WebRTC Publisher</a></li>
+                    <li><a id="nav_whip" href="whip.html">WHIP</a></li>
+                    <li><a id="nav_whep" href="whep.html">WHEP</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="form-inline">
+        URL:
+        <input type="text" id="txt_url" class="input-xxlarge" value="">
+        <button class="btn btn-primary" id="btn_publish">Publish</button>
+    </div>
+
+    <label></label>
+    <video id="rtc_media_player" width="320" autoplay muted></video>
+
+    <label></label>
+    SessionID: <span id='sessionid'></span>
+
+    <label></label>
+    Audio: <span id='acodecs'></span><br/>
+    Video: <span id='vcodecs'></span>
+
+    <label></label>
+    Simulator: <a href='#' id='simulator-drop'>Drop</a>
+
+    <footer>
+        <p></p>
+        <p>Powered by <a href="https://github.com/ossrs/srs">SRS</a></p>
+    </footer>
+</div>
+<script type="text/javascript">
+$(function(){
+    var sdk = null;
+    var startPublish = function() {
+        $('#rtc_media_player').show();
+        if (sdk) {
+            sdk.close();
+        }
+        sdk = new SrsRtcPublisherAsync();
+        $('#rtc_media_player').prop('srcObject', sdk.stream);
+
+        sdk.pc.onicegatheringstatechange = function (event) {
+            if (sdk.pc.iceGatheringState === "complete") {
+                $('#acodecs').html(SrsRtcFormatSenders(sdk.pc.getSenders(), "audio"));
+                $('#vcodecs').html(SrsRtcFormatSenders(sdk.pc.getSenders(), "video"));
+            }
+        };
+
+        var url = $("#txt_url").val();
+        sdk.publish(url).then(function(session){
+            $('#sessionid').html(session.sessionid);
+            $('#simulator-drop').attr('href', session.simulator + '?drop=1&username=' + session.sessionid);
+        }).catch(function (reason) {
+            if (reason instanceof SrsError) {
+                if (reason.name === 'HttpsRequiredError') {
+                    alert(`WebRTC publishing requires HTTPS or localhost: ${reason.name} ${reason.message}`);
+                } else {
+                    alert(`${reason.name} ${reason.message}`);
+                }
+            }
+            if (reason instanceof DOMException) {
+                if (reason.name === 'NotFoundError') {
+                    alert(`No microphone or camera found: getUserMedia ${reason.name} ${reason.message}`);
+                } else if (reason.name === 'NotAllowedError') {
+                    alert(`Camera/microphone access was denied: getUserMedia ${reason.name} ${reason.message}`);
+                } else {
+                    alert(`getUserMedia ${reason.name} ${reason.message}`);
+                }
+            }
+            sdk.close();
+            $('#rtc_media_player').hide();
+            console.error(reason);
+        });
+    };
+
+    $('#rtc_media_player').hide();
+    var query = parse_query_string();
+    srs_init_rtc("#txt_url", query);
+
+    $("#btn_publish").click(startPublish);
+    if (query.autostart === 'true') {
+        window.addEventListener("load", function(){ startPublish(); });
+    }
+});
+</script>
+</body>
+</html>

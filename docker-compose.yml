@@ -1,0 +1,17 @@
+services:
+  srs:
+    image: llewroberts/docker-webrtc-server:latest
+    build: .
+    ports:
+      - "1935:1935"
+      - "8080:8080"
+      - "1985:1985"
+      - "8000:8000/udp"
+      - "8000:8000/tcp"
+    environment:
+      # REQUIRED: Set this to your server's public IP address.
+      # WebRTC requires the server to advertise its public IP for ICE connectivity.
+      CANDIDATE_IP: ${CANDIDATE_IP:-}
+      # Or set AUTO_DETECT_IP=true to auto-detect on cloud VMs (Azure, AWS, GCP).
+      AUTO_DETECT_IP: ${AUTO_DETECT_IP:-false}
+    restart: unless-stopped
